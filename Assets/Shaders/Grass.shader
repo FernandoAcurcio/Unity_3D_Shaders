@@ -6,7 +6,8 @@ Shader "Roystan/Grass"
         _TopColor("Top Color", Color) = (1,1,1,1)
 		_BottomColor("Bottom Color", Color) = (1,1,1,1)
 		_TranslucentGain("Translucent Gain", Range(0,1)) = 0.5
-    }
+    
+	}
 
 	CGINCLUDE
 	#include "UnityCG.cginc"
@@ -16,21 +17,58 @@ Shader "Roystan/Grass"
 	{
 		float4 pos : SV_POSITION;
 	};
+
+	struct vertexInput
+	{
+		float4 vertex : POSITION;
+		float3 normal : NORMAL;
+		float4 tangent : TANGENT;
+	};
 	
-	[maxvertexcount(3)]
-	void geo(triangle float4 IN[3] : SV_POSITION, inout TriangleStream<geometryOutput> triStream)
+	struct vertexOutput
+	{
+		float4 vertex : SV_POSITION;
+		float3 normal : NORMAL;
+		float4 tangent : TANGENT;
+	};
+
+	vertexOutput vert(vertexInput v)
+	{
+		vertexOutput o;
+		o.vertex = v.vertex;
+		o.normal = v.normal;
+		o.tangent = v.tangent;
+		return o;
+	}
+
+	geometryOutput VertexOutput(float3 pos)
 	{
 		geometryOutput o;
-		
-		o.pos = UnityObjectToClipPos(float4(0.5, 0, 0, 1));
-		triStream.Append(o);
-		
-		o.pos = UnityObjectToClipPos(float4(-0.5, 0, 0, 1));
-		triStream.Append(o);
-		
-		o.pos = UnityObjectToClipPos(float4(0, 1, 0, 1));
-		triStream.Append(o);
+		o.pos = UnityObjectToClipPos(pos);
+		return o;
 	}
+	
+	[maxvertexcount(3)]
+	void geo(triangle vertexOutput IN[3], inout TriangleStream<geometryOutput> triStream)
+	{
+		float3 pos = IN[0].vertex;
+
+		float3 vNormal = IN[0].normal;
+		float4 vTangent = IN[0].tangent;
+		float3 vBinormal = cross(vNormal, vTangent) * vTangent.w;
+
+		float3x3 tangentToLocal = float3x3(
+			vTangent.x, vBinormal.x, vNormal.x,
+			vTangent.y, vBinormal.y, vNormal.y,
+			vTangent.z, vBinormal.z, vNormal.z
+			);
+
+		triStream.Append(VertexOutput(pos + mul(tangentToLocal, float3(0.5, 0, 0))));
+		triStream.Append(VertexOutput(pos + mul(tangentToLocal, float3(-0.5, 0, 0))));
+		triStream.Append(VertexOutput(pos + mul(tangentToLocal, float3(0, 0, 1))));
+	}
+
+	
 
 	// Simple noise function, sourced from http://answers.unity.com/answers/624136/view.html
 	// Extended discussion on this function can be found at the following link:
